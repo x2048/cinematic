@@ -83,13 +83,25 @@ cinematic = {
 	players = {},
 	start = function(player, motion, params)
 		local player_name = player:get_player_name()
-		if motion == "stop" then
+		-- Stop previous motion and clean up
+		if cinematic.players[player_name] ~= nil then
+			player:set_fov(unpack(cinematic.players[player_name].fov))
 			cinematic.players[player_name] = nil
-		else
-			local state = cinematic.motions[motion].initialize(player, params)
-			-- motion can return nil from initialize to abort the process
-			if state ~= nil then
-				cinematic.players[player_name] = { player = player, motion = motion, state = state }
+		end
+
+		local state = cinematic.motions[motion].initialize(player, params)
+		-- motion can return nil from initialize to abort the process
+		if state ~= nil then
+			cinematic.players[player_name] = { player = player, motion = motion, state = state, fov = {player:get_fov()} }
+			if params.fov == "wide" then
+				params.fov = 1.4
+			elseif params.fov == "narrow" then
+				params.fov = 0.5
+			elseif params.fov ~= nil then
+				params.fov = tonumber(params.fov)
+			end
+			if params.fov ~= nil then
+				player:set_fov(params.fov, true)
 			end
 		end
 	end,
@@ -256,7 +268,7 @@ minetest.register_chatcommand("cc", {
 		-- Parse command line
 		for i = 1,#parts do
 			local parsed = false
-			for _,setting in ipairs({ "direction", "dir", "speed", "v", "radius", "r" }) do
+			for _,setting in ipairs({ "direction", "dir", "speed", "v", "radius", "r", "fov" }) do
 				if not parsed and starts_with(parts[i], setting.."=") then
 					params[setting] = skip_prefix(parts[i], setting.."=")
 					parsed = true
