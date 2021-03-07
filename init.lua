@@ -92,7 +92,9 @@ cinematic = {
 		local state = cinematic.motions[motion].initialize(player, params)
 		-- motion can return nil from initialize to abort the process
 		if state ~= nil then
+			position.save(player, "auto")
 			cinematic.players[player_name] = { player = player, motion = motion, state = state, fov = {player:get_fov()} }
+
 			if params.fov == "wide" then
 				params.fov = 1.4
 			elseif params.fov == "narrow" then
@@ -219,6 +221,7 @@ cinematic.register_motion("tilt", {
 })
 
 cinematic.register_motion("stop", {initialize = function() end})
+cinematic.register_motion("revert", {initialize = function(player) position.restore(player, "auto") end})
 
 cinematic.register_command("pos", {
 	run = function(player, args)
@@ -246,7 +249,7 @@ cinematic.register_command("pos", {
 -- Chat command handler
 
 minetest.register_chatcommand("cc", {
-	params = "((360|tilt|pan|truck|dolly|pedestal|stop) [direction=(right|left|in|out|up|down)] [speed=<speed>] [radius=<radius>] | pos ((save|restore|clear [<name>])|list))",
+	params = "((360|tilt|pan|truck|dolly|pedestal) [direction=(right|left|in|out|up|down)] [speed=<speed>] [radius=<radius>] | pos ((save|restore|clear [<name>])|list)) | (stop|revert)",
 	description = "Simulate cinematic camera motion",
 	privs = { fly = true },
 	func = function(name, cmdline)
