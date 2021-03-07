@@ -1,14 +1,86 @@
--- Core API
+-- Copyright (c) 2021 Dmitry Kostenko. Licensed under AGPL v3
 
+-- Parsing utilities
+
+local function starts_with(str, prefix)
+	return str:sub(1, #prefix) == prefix
+end
+
+local function skip_prefix(str, prefix)
+	return str:sub(#prefix + 1)
+end
+
+local function string_split(str, char)
+	result = {}
+	for part in str:gmatch("[^"..char.."]+") do
+		table.insert(result, part)
+	end
+	return result
+end
+
+local function is_in(item, set)
+	for _,valid in ipairs(set) do
+		if item == valid then return true end
+	end
+	return false
+end
+
+-- Position helpers
+
+local position = {}
+function position.save(player, slot)
+	local state = { pos = player:get_pos(), look = { h = player:get_look_horizontal(), v = player:get_look_vertical() }}
+	player:get_meta():set_string("cc_pos_"..slot, minetest.serialize(state))
+end
+
+function position.restore(player, slot)
+	local state = player:get_meta():get_string("cc_pos_"..slot)
+	if state == nil then
+		minetest.chat_send_player(player:get_player_name(), "Saved position not found")
+	end
+
+	state = minetest.deserialize(state)
+	if state == nil then
+		minetest.chat_send_player(player:get_player_name(), "Saved position could not be restored")
+	end
+
+	player:set_pos(state.pos)
+	player:set_look_horizontal(state.look.h)
+	player:set_look_vertical(state.look.v)
+end
+
+function position.clear(player, slot)
+	player:get_meta():set_string("cc_pos_"..slot, "")
+end
+
+function position.list(player)
+	local result = {}
+  for key,_ in pairs(player:get_meta():to_table().fields) do
+		if starts_with(key, "cc_pos_") then
+			table.insert(result, skip_prefix(key, "cc_pos_"))
+		end
+	end
+	return result
+end
+
+-- Core API
 local cinematic
 cinematic = {
 	motions = {},
-	players = {},
-	register_motion = function(name,definition)
+	register_motion = function(name, definition)
 		definition.name = name
 		cinematic.motions[name] = definition
 		table.insert(cinematic.motions, definition)
 	end,
+
+	commands = {},
+	register_command = function(name, definition)
+		definition.name = name
+		cinematic.commands[name] = definition
+		table.insert(cinematic.commands, definition)
+	end,
+
+	players = {},
 	start = function(player, motion, params)
 		local player_name = player:get_player_name()
 		if motion == "stop" then
@@ -63,7 +135,7 @@ cinematic.register_motion("dolly", {
 	initialize = function(player, params)
 		return {
 			speed = params:get_speed({"b", "back", "backwards", "out"}, "forward"),
-			direction = vector.normalize(player:get_look_dir()),
+			direction = vector.normalize(vector.new(player:get_look_dir().x, 0, player:get_look_dir().z)),
 		}
 	end,
 	tick = function(player, state)
@@ -136,65 +208,75 @@ cinematic.register_motion("tilt", {
 
 cinematic.register_motion("stop", {initialize = function() end})
 
--- Parsing utilities
+cinematic.register_command("pos", {
+	run = function(player, args)
+		local slot = args[2] or "default"
 
-local function starts_with(str, prefix)
-	return str:sub(1, #prefix) == prefix
-end
-
-local function skip_prefix(str, prefix)
-	return str:sub(#prefix + 1)
-end
-
-local function string_split(str, char)
-	result = {}
-	for part in str:gmatch("[^"..char.."]+") do
-		table.insert(result, part)
+		if args[1] == "save" then
+			position.save(player, slot)
+			return true
+		elseif args[1] == "restore" then
+			position.restore(player, slot)
+			return true
+		elseif args[1] == "clear" then
+			position.clear(player, slot)
+		elseif args[1] == "list" then
+			for _,slot in ipairs(position.list(player)) do
+				minetest.chat_send_player(player:get_player_name(), slot)
+			end
+		else
+			return false, "Unknown subcommand"..args[1]
+		end
 	end
-	return result
-end
+})
 
-local function is_in(item, set)
-	for _,valid in ipairs(set) do
-		if item == valid then return true end
-	end
-	return false
-end
 
 -- Chat command handler
 
 minetest.register_chatcommand("cc", {
-	params = "(360|tilt|pan|truck|dolly|pedestal|stop) [direction=<right|left|in|out>] [speed=<speed>] [radius=<radius>]",
-	description = "Move your camera with cinematic effects.",
+	params = "((360|tilt|pan|truck|dolly|pedestal|stop) [direction=(right|left|in|out|up|down)] [speed=<speed>] [radius=<radius>] | pos ((save|restore|clear [<name>])|list))",
+	description = "Simulate cinematic camera motion",
 	privs = { fly = true },
 	func = function(name, cmdline)
 		local player = minetest.get_player_by_name(name)
-		local command
 		local params = {}
 		local parts = string_split(cmdline, " ")
+
+		local command = parts[1]
+		table.remove(parts, 1)
+		-- Handle commands
+		if cinematic.commands[command] ~= nil then
+			return cinematic.commands[command].run(player, parts)
+		end
+
+		if cinematic.motions[command] == nil then
+			return false, "Invalid command or motion, see /help cc"
+		end
+
 		-- Parse command line
 		for i = 1,#parts do
-			if command == nil then
-				command = parts[i]
-			else
-				for _,setting in ipairs({ "direction", "speed", "radius" }) do
-					if starts_with(parts[i], setting.."=") then
-						params[setting] = skip_prefix(parts[i], setting.."=")
-					end
+			local parsed = false
+			for _,setting in ipairs({ "direction", "dir", "speed", "v", "radius", "r" }) do
+				if not parsed and starts_with(parts[i], setting.."=") then
+					params[setting] = skip_prefix(parts[i], setting.."=")
+					parsed = true
 				end
 			end
+			if not parsed then
+				return false, "Invalid parameter "..parts[i]
+			end
 		end
-		
-		-- Fixup numeric settings
+
+		-- Fix parameters
+		params.direction = params.direction or params.dir
+		params.speed = params.speed or params.v
+		params.radius = params.radius or params.r
+
 		params.speed = (params.speed and tonumber(params.speed))
 		params.radius = (params.radius and tonumber(params.radius))
 
 		params.get_speed = function(self, negative_dirs, default_dir)
 			return (self.speed or 1) * (is_in(self.direction or default_dir, negative_dirs) and -1 or 1)
-		end
-
-		if cinematic.motions[command] == nil then
-			return false, "Invalid command, see /help cc"
 		end
 
 		cinematic.start(player, command, params)
