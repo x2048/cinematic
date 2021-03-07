@@ -220,6 +220,30 @@ cinematic.register_motion("tilt", {
 	end
 })
 
+cinematic.register_motion("zoom", {
+	initialize = function(player, params)
+		return {
+			speed = params:get_speed({"out"}, "in"),
+		}
+	end,
+	tick = function(player, state)
+		-- Capture initial FOV at the tick
+		-- This is not possible in initialize because the FOV modifier has not been applied yet
+		if state.fov == nil then
+			local fov = {player:get_fov()}
+			minetest.chat_send_all(dump(fov,""))
+			if fov[1] == 0 then
+				fov[1] = 1
+				fov[2] = true
+			end
+			fov[3] = 0
+			state.fov = fov
+		end
+		state.fov[1] = state.fov[1] - 0.001 * state.speed
+		player:set_fov(unpack(state.fov))
+	end
+})
+
 cinematic.register_motion("stop", {initialize = function() end})
 cinematic.register_motion("revert", {initialize = function(player) position.restore(player, "auto") end})
 
