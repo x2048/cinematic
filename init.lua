@@ -33,15 +33,25 @@ function position.save(player, slot)
 	player:get_meta():set_string("cc_pos_"..slot, minetest.serialize(state))
 end
 
-function position.restore(player, slot)
+function position.get(player, slot)
 	local state = player:get_meta():get_string("cc_pos_"..slot)
 	if state == nil then
-		minetest.chat_send_player(player:get_player_name(), "Saved position not found")
+		return nil, "Saved position not found"
 	end
 
 	state = minetest.deserialize(state)
 	if state == nil then
-		minetest.chat_send_player(player:get_player_name(), "Saved position could not be restored")
+		return nil, "Saved position could not be restored"
+	end
+
+	return state
+end
+
+function position.restore(player, slot)
+	local state,message = position.get(player, slot)
+	if state == nil then
+		minetest.chat_send_player(player:get_player_name(), message)
+		return
 	end
 
 	player:set_pos(state.pos)
