@@ -124,9 +124,9 @@ cinematic = {
 
 -- Update loop
 
-minetest.register_globalstep(function()
+minetest.register_globalstep(function(dtime)
 	for _, entry in pairs(cinematic.players) do
-		cinematic.motions[entry.motion].tick(entry.player, entry.state)
+		cinematic.motions[entry.motion].tick(entry.player, entry.state, dtime)
 	end
 end)
 
@@ -142,16 +142,23 @@ cinematic.register_motion("360", {
 			angle = minetest.dir_to_yaw(vector.subtract(player_pos, center)) + math.pi / 2,
 			height = player_pos.y - center.y,
 			speed = params:get_speed({"l", "left"}, "right"),
+			dtime = 0,
 		}
 	end,
-	tick = function(player, state)
-		state.angle = state.angle + state.speed * math.pi / 3600
-		if state.angle < 0 then state.angle = state.angle + 2 * math.pi end
-		if state.angle > 2 * math.pi then state.angle = state.angle - 2 * math.pi end
+	tick = function(player, state, dtime)
+		state.dtime = state.dtime + dtime
+		local delta_angle = state.speed * math.pi / 3600 * state.dtime
+		if math.abs(delta_angle) > 1.0 then
+			state.angle = state.angle + delta_angle
+			delta_angle = 0.0
+			state.dtime = 0.0
+			if state.angle < 0 then state.angle = state.angle + 2 * math.pi end
+			if state.angle > 2 * math.pi then state.angle = state.angle - 2 * math.pi end
+		end
 
-		player_pos = vector.add(state.center, vector.new(state.distance * math.cos(state.angle), state.height, state.distance * math.sin(state.angle)))
+		player_pos = vector.add(state.center, vector.new(state.distance * math.cos(state.angle + delta_angle), state.height, state.distance * math.sin(state.angle + delta_angle)))
 		player:set_pos(player_pos)
-		player:set_look_horizontal(state.angle + math.pi / 2)
+		player:set_look_horizontal(state.angle + delta_angle + math.pi / 2)
 	end
 })
 
