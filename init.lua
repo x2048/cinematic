@@ -142,16 +142,16 @@ cinematic.register_motion("360", {
 			angle = minetest.dir_to_yaw(vector.subtract(player_pos, center)) + math.pi / 2,
 			height = player_pos.y - center.y,
 			speed = params:get_speed({"l", "left"}, "right"),
-			dtime = 0,
+			time = 0,
 		}
 	end,
 	tick = function(player, state, dtime)
-		state.dtime = state.dtime + dtime
-		local delta_angle = state.speed * math.pi / 3600 * state.dtime
+		state.time = state.time + dtime
+		local delta_angle = state.speed * state.time * math.pi * 1 / 180
 		if math.abs(delta_angle) > 1.0 then
 			state.angle = state.angle + delta_angle
 			delta_angle = 0.0
-			state.dtime = 0.0
+			state.time = 0.0
 			if state.angle < 0 then state.angle = state.angle + 2 * math.pi end
 			if state.angle > 2 * math.pi then state.angle = state.angle - 2 * math.pi end
 		end
