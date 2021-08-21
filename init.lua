@@ -216,30 +216,46 @@ cinematic.register_motion("pedestal", {
 cinematic.register_motion("pan", {
 	initialize = function(player, params)
 		return {
-			speed = params:get_speed({"l", "left"}, "right"),
-			angle = player:get_look_horizontal()
+			speed = -params:get_speed({"l", "left"}, "right"),
+			angle = player:get_look_horizontal(),
+			time = 0,
 		}
 	end,
-	tick = function(player, state)
-		state.angle = state.angle - state.speed * math.pi / 3600
-		if state.angle < 0 then state.angle = state.angle + 2 * math.pi end
-		if state.angle > 2 * math.pi then state.angle = state.angle - 2 * math.pi end
-		player:set_look_horizontal(state.angle)
+	tick = function(player, state, dtime)
+		state.time = state.time + dtime
+		local delta_angle = state.speed * state.time * math.pi * 1 / 180
+		if math.abs(delta_angle) > 1.0 then
+			state.angle = state.angle + delta_angle
+			delta_angle = 0.0
+			state.time = 0.0
+			if state.angle < 0 then state.angle = state.angle + 2 * math.pi end
+			if state.angle > 2 * math.pi then state.angle = state.angle - 2 * math.pi end
+		end
+
+		player:set_look_horizontal(state.angle + delta_angle)
 	end
 })
 
 cinematic.register_motion("tilt", {
 	initialize = function(player, params)
 		return {
-			speed = params:get_speed({"d", "down"}, "up"),
-			angle = player:get_look_vertical()
+			speed = -params:get_speed({"d", "down"}, "up"),
+			angle = player:get_look_vertical(),
+			time = 0,
 		}
 	end,
-	tick = function(player, state)
-		state.angle = state.angle - state.speed * math.pi / 3600
-		if state.angle < 0 then state.angle = state.angle + 2 * math.pi end
-		if state.angle > 2 * math.pi then state.angle = state.angle - 2 * math.pi end
-		player:set_look_vertical(state.angle)
+	tick = function(player, state, dtime)
+		state.time = state.time + dtime
+		local delta_angle = state.speed * state.time * math.pi * 1 / 180
+		if math.abs(delta_angle) > 1.0 then
+			state.angle = state.angle + delta_angle
+			delta_angle = 0.0
+			state.time = 0.0
+			if state.angle < 0 then state.angle = state.angle + 2 * math.pi end
+			if state.angle > 2 * math.pi then state.angle = state.angle - 2 * math.pi end
+		end
+
+		player:set_look_vertical(state.angle + delta_angle)
 	end
 })
 
