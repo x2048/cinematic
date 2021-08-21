@@ -167,12 +167,14 @@ cinematic.register_motion("dolly", {
 		return {
 			speed = params:get_speed({"b", "back", "backwards", "out"}, "forward"),
 			direction = vector.normalize(vector.new(player:get_look_dir().x, 0, player:get_look_dir().z)),
+			origin = player:get_pos(),
+			time = 0,
 		}
 	end,
-	tick = function(player, state)
-		local player_pos = player:get_pos()
+	tick = function(player, state, dtime)
+		state.time = state.time + dtime
 
-		player_pos = vector.add(player_pos, vector.multiply(state.direction, state.speed * 0.05))
+		player_pos = vector.add(state.origin, vector.multiply(state.direction, state.time * state.speed))
 		player:set_pos(player_pos)
 	end
 })
@@ -182,12 +184,14 @@ cinematic.register_motion("truck", {
 		return {
 			speed = params:get_speed({"l", "left"}, "right"),
 			direction = vector.normalize(vector.cross(vector.new(0,1,0), player:get_look_dir())),
+			origin = player:get_pos(),
+			time = 0,
 		}
 	end,
-	tick = function(player, state)
-		local player_pos = player:get_pos()
+	tick = function(player, state, dtime)
+		state.time = state.time + dtime
 
-		player_pos = vector.add(player_pos, vector.multiply(state.direction, state.speed * 0.05))
+		player_pos = vector.add(state.origin, vector.multiply(state.direction, state.time * state.speed))
 		player:set_pos(player_pos)
 	end
 })
@@ -196,13 +200,15 @@ cinematic.register_motion("pedestal", {
 	initialize = function(player, params)
 		return {
 			speed = params:get_speed({"d", "down"}, "up"),
-			direction = vector.new(0,1,0)
+			direction = vector.new(0,1,0),
+			origin = player:get_pos(),
+			time = 0,
 		}
 	end,
-	tick = function(player, state)
-		local player_pos = player:get_pos()
+	tick = function(player, state, dtime)
+		state.time = state.time + dtime
 
-		player_pos = vector.add(player_pos, vector.multiply(state.direction, state.speed * 0.05))
+		player_pos = vector.add(state.origin, vector.multiply(state.direction, state.time * state.speed))
 		player:set_pos(player_pos)
 	end
 })
@@ -281,7 +287,7 @@ cinematic.register_command("pos", {
 				minetest.chat_send_player(player:get_player_name(), slot)
 			end
 		else
-			return false, "Unknown subcommand"..args[1]
+			return false, "Unknown subcommand"..(args[1] or "")
 		end
 	end
 })
