@@ -251,7 +251,7 @@ cinematic.register_command("motion", {
 		local msg
 
 		if args[1] == "clear" then
-			position.clear(player, slot)
+			motion.clear(player, slot)
 			ok = true
 			if slot then
 				msg = S("@1 motion cleared.", slot)
