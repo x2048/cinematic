@@ -249,7 +249,6 @@ cinematic.register_command("motion", {
 		local slot = args[2]
 		local ok = false
 		local msg
-		print(dump(args))
 
 		if args[1] == "clear" then
 			position.clear(player, slot)
@@ -267,7 +266,6 @@ cinematic.register_command("motion", {
 		else
 			msg = S("Unknown subcommand @1", (args[1] or ""))
 		end
-		print("motion cmd msg:", dump(msg))
 		return ok, msg
 	end
 })
