@@ -1,6 +1,7 @@
 local MOD_NAME = minetest.get_current_modname()
 local MOD_PATH = minetest.get_modpath(MOD_NAME) .. "/"
 local utils = dofile(MOD_PATH .. "utils.lua")
+local S = minetest.get_translator(MOD_NAME)
 
 -- Position helpers
 local position = utils.position
@@ -160,6 +161,7 @@ cinematic.register_motion("zoom", {
 
 cinematic.register_motion("stop", {
 	initialize = function(player, params)
+		minetest.chat_send_player(player:get_player_name(), S('@1 motion done', params.type))
 		if params and type(params.onStop) == "function" then
 			params.onStop(player, params)
 		end
@@ -167,6 +169,7 @@ cinematic.register_motion("stop", {
 )
 cinematic.register_motion("revert", {
 	initialize = function(player, params)
+		minetest.chat_send_player(player:get_player_name(), S('@1 motion done', params.type))
 		position.restore(player, "auto")
 		if params and type(params.onStop) == "function" then
 			params.onStop(player, params)

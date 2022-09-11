@@ -11,3 +11,4 @@ No any named motions provided=
 @1 motion cleared.=
 All motions cleared.=
 Simulate cinematic camera motion=
+@1 motion done=

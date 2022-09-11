@@ -207,8 +207,8 @@ local function execCommand(player, cmdline)
 
 	params.get_speed = get_speed
 
+	params.type = command
 	if params.name then
-		params.type = command
 		motion.save(player, params.name, params)
 	end
 	if params.norun ~= true then
@@ -229,7 +229,9 @@ cinematic.register_command("run", {
 				local nextId = params.index+1
 				if nextId <= #paramsList then
 					params = paramsList[nextId]
-					cinematic.start(player, params.type, params)
+					minetest.after(0.05, function()
+						cinematic.start(player, params.type, params)
+					end)
 				end
 			end
 			table.insert(paramsList, mParams)
