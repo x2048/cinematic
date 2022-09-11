@@ -23,6 +23,7 @@ local position = utils.position
 -- Core API
 -- local cinematic
 cinematic = {
+	DEFAULT_DELAY = 0.05, -- seconds
 	motions = {},
 	register_motion = function(name, definition)
 		definition.name = name
@@ -221,21 +222,42 @@ cinematic.register_command("run", {
 	run = function(player, args)
 		local paramsList = {}
 		for i, v in ipairs(args) do
-			local mParams, err = motion.get(player, v)
-			if not mParams then return false, S(err) end
-			mParams.get_speed = get_speed
-			mParams.index = i
-			mParams.onStop = function(player, params)
-				local nextId = params.index+1
-				if nextId <= #paramsList then
-					params = paramsList[nextId]
-					minetest.after(0.05, function()
-						cinematic.start(player, params.type, params)
-					end)
+			local mParams = nil
+			local err = nil
+			if starts_with(v, "wait") then
+				--shortcut wait
+				local _, delay = unpack(string_split(v, "="))
+				if delay then delay = tonumber(delay) end
+				if type(delay) ~= "number" then delay = 1 end
+				if i > 1 then
+					paramsList[i-1].delay = delay
+				else -- first
+					-- table.insert(paramsList, {})
+					mParams = {type="wait", time=delay}
 				end
+			else
+				mParams, err = motion.get(player, v)
 			end
-			table.insert(paramsList, mParams)
-		end
+
+			if mParams then
+				mParams.get_speed = get_speed
+				mParams.index = i
+				mParams.delay = cinematic.DEFAULT_DELAY
+				mParams.onStop = function(player, params)
+					local delay = params.delay
+					local nextId = params.index+1
+					if nextId <= #paramsList then
+						params = paramsList[nextId]
+						minetest.after(delay, function()
+							cinematic.start(player, params.type, params)
+						end)
+					end
+				end
+				table.insert(paramsList, mParams)
+			elseif err then
+				return false, S(err)
+			end
+	end
 		if #paramsList then
 			local params = paramsList[1]
 			cinematic.start(player, params.type, params)

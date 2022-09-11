@@ -227,3 +227,12 @@ cinematic.register_motion("to", {
 		end
 	end
 })
+
+cinematic.register_motion("wait", {
+	initialize = function()
+		return {}
+	end,
+	tick = function()
+	end
+})
+
