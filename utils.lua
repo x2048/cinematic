@@ -23,6 +23,10 @@ local function is_in(item, set)
 	return false
 end
 
+local function get_speed(self, negative_dirs, default_dir)
+	return (self.speed or 1) * (is_in(self.direction or default_dir, negative_dirs) and -1 or 1)
+end
+
 -- Motion helpers
 
 local motion = {}
@@ -149,4 +153,5 @@ return {
   skip_prefix = skip_prefix,
   string_split = string_split,
   is_in = is_in,
+	get_speed = get_speed,
 }

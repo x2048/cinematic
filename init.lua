@@ -11,7 +11,7 @@ local utils = dofile(MOD_PATH .. "utils.lua")
 local starts_with = utils.starts_with
 local skip_prefix = utils.skip_prefix
 local string_split= utils.string_split
-local is_in = utils.is_in
+local get_speed = utils.get_speed
 -- local cache_fov = minetest.settings:get("fov") --or 72
 
 -- Motion helpers
@@ -136,10 +136,6 @@ cinematic.register_command("pos", {
 		return ok, msg
 	end
 })
-
-local function get_speed(self, negative_dirs, default_dir)
-	return (self.speed or 1) * (is_in(self.direction or default_dir, negative_dirs) and -1 or 1)
-end
 
 local function execCommand(player, cmdline)
 	local params = {}
