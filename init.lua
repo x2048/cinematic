@@ -23,7 +23,7 @@ local position = utils.position
 -- Core API
 -- local cinematic
 cinematic = {
-	DEFAULT_DELAY = 0.05, -- seconds
+	DEFAULT_DELAY = 0.1, -- seconds
 	motions = {},
 	register_motion = function(name, definition)
 		definition.name = name
@@ -229,12 +229,7 @@ cinematic.register_command("run", {
 				local _, delay = unpack(string_split(v, "="))
 				if delay then delay = tonumber(delay) end
 				if type(delay) ~= "number" then delay = 1 end
-				if i > 1 then
-					paramsList[i-1].delay = delay
-				else -- first
-					-- table.insert(paramsList, {})
-					mParams = {type="wait", time=delay}
-				end
+				mParams = {type="wait", time=delay}
 			else
 				mParams, err = motion.get(player, v)
 			end
@@ -242,13 +237,12 @@ cinematic.register_command("run", {
 			if mParams then
 				mParams.get_speed = get_speed
 				mParams.index = i
-				mParams.delay = cinematic.DEFAULT_DELAY
 				mParams.onStop = function(player, params)
-					local delay = params.delay
+					-- local delay = params.delay
 					local nextId = params.index+1
 					if nextId <= #paramsList then
 						params = paramsList[nextId]
-						minetest.after(delay, function()
+						minetest.after(cinematic.DEFAULT_DELAY, function()
 							cinematic.start(player, params.type, params)
 						end)
 					end
