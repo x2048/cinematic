@@ -2,6 +2,7 @@ local MOD_NAME = minetest.get_current_modname()
 local MOD_PATH = minetest.get_modpath(MOD_NAME) .. "/"
 local utils = dofile(MOD_PATH .. "utils.lua")
 local S = minetest.get_translator(MOD_NAME)
+local get_speed = utils.get_speed
 
 -- Position helpers
 local position = utils.position
@@ -17,7 +18,7 @@ cinematic.register_motion("360", {
 			distance = vector.distance(vector.new(center.x, 0, center.z), vector.new(player_pos.x, 0, player_pos.z)),
 			angle = minetest.dir_to_yaw(vector.subtract(player_pos, center)) + math.pi / 2,
 			height = player_pos.y - center.y,
-			speed = params:get_speed({"l", "left"}, "right"),
+			speed = get_speed(params, {"l", "left"}, "right"),
 			time = 0,
 		}
 	end,
@@ -41,7 +42,7 @@ cinematic.register_motion("360", {
 cinematic.register_motion("dolly", {
 	initialize = function(player, params)
 		return {
-			speed = params:get_speed({"b", "back", "backwards", "out"}, "forward"),
+			speed = get_speed(params,{"b", "back", "backwards", "out"}, "forward"),
 			direction = vector.normalize(vector.new(player:get_look_dir().x, 0, player:get_look_dir().z)),
 			origin = player:get_pos(),
 			time = 0,
@@ -58,7 +59,7 @@ cinematic.register_motion("dolly", {
 cinematic.register_motion("truck", {
 	initialize = function(player, params)
 		return {
-			speed = params:get_speed({"l", "left"}, "right"),
+			speed = get_speed(params,{"l", "left"}, "right"),
 			direction = vector.normalize(vector.cross(vector.new(0,1,0), player:get_look_dir())),
 			origin = player:get_pos(),
 			time = 0,
@@ -75,7 +76,7 @@ cinematic.register_motion("truck", {
 cinematic.register_motion("pedestal", {
 	initialize = function(player, params)
 		return {
-			speed = params:get_speed({"d", "down"}, "up"),
+			speed = get_speed(params,{"d", "down"}, "up"),
 			direction = vector.new(0,1,0),
 			origin = player:get_pos(),
 			time = 0,
@@ -92,7 +93,7 @@ cinematic.register_motion("pedestal", {
 cinematic.register_motion("pan", {
 	initialize = function(player, params)
 		return {
-			speed = -params:get_speed({"l", "left"}, "right"),
+			speed = -get_speed(params,{"l", "left"}, "right"),
 			angle = player:get_look_horizontal(),
 			time = 0,
 		}
@@ -115,7 +116,7 @@ cinematic.register_motion("pan", {
 cinematic.register_motion("tilt", {
 	initialize = function(player, params)
 		return {
-			speed = -params:get_speed({"d", "down"}, "up"),
+			speed = -get_speed(params,{"d", "down"}, "up"),
 			angle = player:get_look_vertical(),
 			time = 0,
 		}
@@ -138,7 +139,7 @@ cinematic.register_motion("tilt", {
 cinematic.register_motion("zoom", {
 	initialize = function(player, params)
 		return {
-			speed = params:get_speed({"out"}, "in"),
+			speed = get_speed(params,{"out"}, "in"),
 		}
 	end,
 	tick = function(player, state)
@@ -181,7 +182,7 @@ cinematic.register_motion("to", {
 	initialize = function(player, params)
 		local posEnd = params.pos
 		local posStart = position.current(player)
-		local speed = params:get_speed({"l", "left"}, "right")
+		local speed = get_speed(params,{"l", "left"}, "right")
 		local timeEnd
 		local direction
 		local angleSpeed

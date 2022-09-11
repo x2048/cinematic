@@ -1,7 +1,7 @@
 -- Copyright (c) 2021 Dmitry Kostenko. Licensed under AGPL v3
 -- LUALOCALS < ---------------------------------------------------------
-local minetest, pairs, ipairs, tonumber
-    = minetest, pairs, ipairs, tonumber
+local minetest, pairs, ipairs, tonumber, DIR_DELIM
+    = minetest, pairs, ipairs, tonumber, DIR_DELIM
 -- LUALOCALS > ---------------------------------------------------------
 
 local MOD_NAME = minetest.get_current_modname()
@@ -11,7 +11,7 @@ local utils = dofile(MOD_PATH .. "utils.lua")
 local starts_with = utils.starts_with
 local skip_prefix = utils.skip_prefix
 local string_split= utils.string_split
-local get_speed = utils.get_speed
+-- local get_speed = utils.get_speed
 -- local cache_fov = minetest.settings:get("fov") --or 72
 
 -- Motion helpers
@@ -206,9 +206,10 @@ local function execCommand(player, cmdline)
 		end
 	end
 
-	params.get_speed = get_speed
+	-- params.get_speed = get_speed
 
 	params.type = command
+	motion.trim(params)
 	if params.name then
 		motion.save(player, params.name, params)
 	end
@@ -235,7 +236,7 @@ cinematic.register_command("run", {
 			end
 
 			if mParams then
-				mParams.get_speed = get_speed
+				-- mParams.get_speed = get_speed
 				mParams.index = i
 				mParams.onStop = function(player, params)
 					-- local delay = params.delay
@@ -288,6 +289,41 @@ cinematic.register_command("motion", {
 	end
 })
 
+if yaml then
+	cinematic.register_command("data", {
+		run = function(player, args)
+			local filename = args[2] or "data.yml"
+			local ok = false
+			local msg
+
+			if args[1] == "save" then
+				local motions = motion.export(player)
+				local positions = position.export(player)
+				filename = "cinematic_" .. filename
+				ok = yaml.writeWorldConfig({motions=motions, positions=positions}, filename)
+				if ok then
+					msg = S("save @1 file successful.", filename)
+				else
+					msg = S("save @1 file failed.", filename)
+				end
+			elseif args[1] == "load" then
+				filename = "cinematic_" .. filename
+				local content = yaml.readWorldConfig(filename)
+				if content then
+					ok = true
+					if content.motions then motion.import(content.motions) end
+					if content.positions then position.import(content.positions) end
+					msg = S("load @1 file successful.", filename)
+				else
+					msg = S("load @1 file failed.", filename)
+				end
+			else
+				msg = S("Unknown subcommand @1", (args[1] or ""))
+			end
+			return ok, msg
+		end
+	})
+end
 -- Chat command handler
 
 minetest.register_chatcommand("cc", {
