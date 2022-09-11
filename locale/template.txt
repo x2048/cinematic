@@ -1,0 +1,13 @@
+# textdomain: cinematic
+Current Position saved to @1=
+Position restored from @1=
+@1 position cleared.=
+All positions cleared.=
+Unknown subcommand @1=
+Invalid command or motion, see /help cc=
+Invalid parameter: @1=
+Motion @1 Starting...=
+No any named motions provided=
+@1 motion cleared.=
+All motions cleared.=
+Simulate cinematic camera motion=

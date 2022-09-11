@@ -1,85 +1,54 @@
 -- Copyright (c) 2021 Dmitry Kostenko. Licensed under AGPL v3
+-- LUALOCALS < ---------------------------------------------------------
+local minetest, pairs, ipairs, tonumber
+    = minetest, pairs, ipairs, tonumber
+-- LUALOCALS > ---------------------------------------------------------
 
--- Parsing utilities
+local MOD_NAME = minetest.get_current_modname()
+local MOD_PATH = minetest.get_modpath(MOD_NAME) .. "/"
+local S = minetest.get_translator(MOD_NAME)
+local utils = dofile(MOD_PATH .. "utils.lua")
+local starts_with = utils.starts_with
+local skip_prefix = utils.skip_prefix
+local string_split= utils.string_split
+local is_in = utils.is_in
+-- local cache_fov = minetest.settings:get("fov") --or 72
 
-local function starts_with(str, prefix)
-	return str:sub(1, #prefix) == prefix
-end
-
-local function skip_prefix(str, prefix)
-	return str:sub(#prefix + 1)
-end
-
-local function string_split(str, char)
-	result = {}
-	for part in str:gmatch("[^"..char.."]+") do
-		table.insert(result, part)
-	end
-	return result
-end
-
-local function is_in(item, set)
-	for _,valid in ipairs(set) do
-		if item == valid then return true end
-	end
-	return false
-end
+-- Motion helpers
+local motion = utils.motion
 
 -- Position helpers
-
-local position = {}
-function position.save(player, slot)
-	local state = { pos = player:get_pos(), look = { h = player:get_look_horizontal(), v = player:get_look_vertical() }}
-	player:get_meta():set_string("cc_pos_"..slot, minetest.serialize(state))
-end
-
-function position.get(player, slot)
-	local state = player:get_meta():get_string("cc_pos_"..slot)
-	if state == nil then
-		return nil, "Saved position not found"
-	end
-
-	state = minetest.deserialize(state)
-	if state == nil then
-		return nil, "Saved position could not be restored"
-	end
-
-	return state
-end
-
-function position.restore(player, slot)
-	local state,message = position.get(player, slot)
-	if state == nil then
-		minetest.chat_send_player(player:get_player_name(), message)
-		return
-	end
-
-	player:set_pos(state.pos)
-	player:set_look_horizontal(state.look.h)
-	player:set_look_vertical(state.look.v)
-end
-
-function position.clear(player, slot)
-	player:get_meta():set_string("cc_pos_"..slot, "")
-end
-
-function position.list(player)
-	local result = {}
-  for key,_ in pairs(player:get_meta():to_table().fields) do
-		if starts_with(key, "cc_pos_") then
-			table.insert(result, skip_prefix(key, "cc_pos_"))
-		end
-	end
-	return result
-end
+local position = utils.position
 
 -- Core API
-local cinematic
+-- local cinematic
 cinematic = {
 	motions = {},
 	register_motion = function(name, definition)
 		definition.name = name
 		cinematic.motions[name] = definition
+		local _tick = definition.tick
+		if _tick then
+			local _initialize = definition.initialize
+			definition.initialize = function(player, params)
+				local result = _initialize(player, params)
+				if result then
+					result.params = params
+					result.timeStart = 0
+					result.timeEnd = params.time
+				end
+				return result
+			end
+			definition.tick = function(player, state, dtime)
+				local vTime = state.timeStart + dtime
+				state.timeStart = vTime
+				if state.timeEnd and vTime >= state.timeEnd then
+					cinematic.stop(player, state.params)
+				else
+					_tick(player, state, dtime)
+				end
+			end
+		end
 		table.insert(cinematic.motions, definition)
 	end,
 
@@ -95,15 +64,17 @@ cinematic = {
 		local player_name = player:get_player_name()
 		-- Stop previous motion and clean up
 		if cinematic.players[player_name] ~= nil then
-			player:set_fov(unpack(cinematic.players[player_name].fov))
+			-- player:set_fov(unpack(cinematic.players[player_name].fov))
 			cinematic.players[player_name] = nil
 		end
 
 		local state = cinematic.motions[motion].initialize(player, params)
 		-- motion can return nil from initialize to abort the process
 		if state ~= nil then
-			position.save(player, "auto")
-			cinematic.players[player_name] = { player = player, motion = motion, state = state, fov = {player:get_fov()} }
+			if params.index == nil or params.index == 1 then
+				position.save(player, "auto")
+			end
+			cinematic.players[player_name] = { player = player, motion = motion, state = state }
 
 			if params.fov == "wide" then
 				params.fov = 1.4
@@ -117,8 +88,8 @@ cinematic = {
 			end
 		end
 	end,
-	stop = function(player)
-		cinematic.start(player, "stop", {})
+	stop = function(player, params)
+		cinematic.start(player, "stop", params or {})
 	end,
 }
 
@@ -130,235 +101,190 @@ minetest.register_globalstep(function(dtime)
 	end
 end)
 
--- Motions
-
-cinematic.register_motion("360", {
-	initialize = function(player, params)
-		local player_pos = player:get_pos()
-		local center = vector.add(player_pos, vector.multiply(vector.normalize(player:get_look_dir()), params.radius or 50))
-		return {
-			center = center,
-			distance = vector.distance(vector.new(center.x, 0, center.z), vector.new(player_pos.x, 0, player_pos.z)),
-			angle = minetest.dir_to_yaw(vector.subtract(player_pos, center)) + math.pi / 2,
-			height = player_pos.y - center.y,
-			speed = params:get_speed({"l", "left"}, "right"),
-			time = 0,
-		}
-	end,
-	tick = function(player, state, dtime)
-		state.time = state.time + dtime
-		local delta_angle = state.speed * state.time * math.pi * 1 / 180
-		if math.abs(delta_angle) > 1.0 then
-			state.angle = state.angle + delta_angle
-			delta_angle = 0.0
-			state.time = 0.0
-			if state.angle < 0 then state.angle = state.angle + 2 * math.pi end
-			if state.angle > 2 * math.pi then state.angle = state.angle - 2 * math.pi end
-		end
-
-		player_pos = vector.add(state.center, vector.new(state.distance * math.cos(state.angle + delta_angle), state.height, state.distance * math.sin(state.angle + delta_angle)))
-		player:set_pos(player_pos)
-		player:set_look_horizontal(state.angle + delta_angle + math.pi / 2)
-	end
-})
-
-cinematic.register_motion("dolly", {
-	initialize = function(player, params)
-		return {
-			speed = params:get_speed({"b", "back", "backwards", "out"}, "forward"),
-			direction = vector.normalize(vector.new(player:get_look_dir().x, 0, player:get_look_dir().z)),
-			origin = player:get_pos(),
-			time = 0,
-		}
-	end,
-	tick = function(player, state, dtime)
-		state.time = state.time + dtime
-
-		player_pos = vector.add(state.origin, vector.multiply(state.direction, state.time * state.speed))
-		player:set_pos(player_pos)
-	end
-})
-
-cinematic.register_motion("truck", {
-	initialize = function(player, params)
-		return {
-			speed = params:get_speed({"l", "left"}, "right"),
-			direction = vector.normalize(vector.cross(vector.new(0,1,0), player:get_look_dir())),
-			origin = player:get_pos(),
-			time = 0,
-		}
-	end,
-	tick = function(player, state, dtime)
-		state.time = state.time + dtime
-
-		player_pos = vector.add(state.origin, vector.multiply(state.direction, state.time * state.speed))
-		player:set_pos(player_pos)
-	end
-})
-
-cinematic.register_motion("pedestal", {
-	initialize = function(player, params)
-		return {
-			speed = params:get_speed({"d", "down"}, "up"),
-			direction = vector.new(0,1,0),
-			origin = player:get_pos(),
-			time = 0,
-		}
-	end,
-	tick = function(player, state, dtime)
-		state.time = state.time + dtime
-
-		player_pos = vector.add(state.origin, vector.multiply(state.direction, state.time * state.speed))
-		player:set_pos(player_pos)
-	end
-})
-
-cinematic.register_motion("pan", {
-	initialize = function(player, params)
-		return {
-			speed = -params:get_speed({"l", "left"}, "right"),
-			angle = player:get_look_horizontal(),
-			time = 0,
-		}
-	end,
-	tick = function(player, state, dtime)
-		state.time = state.time + dtime
-		local delta_angle = state.speed * state.time * math.pi * 1 / 180
-		if math.abs(delta_angle) > 1.0 then
-			state.angle = state.angle + delta_angle
-			delta_angle = 0.0
-			state.time = 0.0
-			if state.angle < 0 then state.angle = state.angle + 2 * math.pi end
-			if state.angle > 2 * math.pi then state.angle = state.angle - 2 * math.pi end
-		end
-
-		player:set_look_horizontal(state.angle + delta_angle)
-	end
-})
-
-cinematic.register_motion("tilt", {
-	initialize = function(player, params)
-		return {
-			speed = -params:get_speed({"d", "down"}, "up"),
-			angle = player:get_look_vertical(),
-			time = 0,
-		}
-	end,
-	tick = function(player, state, dtime)
-		state.time = state.time + dtime
-		local delta_angle = state.speed * state.time * math.pi * 1 / 180
-		if math.abs(delta_angle) > 1.0 then
-			state.angle = state.angle + delta_angle
-			delta_angle = 0.0
-			state.time = 0.0
-			if state.angle < 0 then state.angle = state.angle + 2 * math.pi end
-			if state.angle > 2 * math.pi then state.angle = state.angle - 2 * math.pi end
-		end
-
-		player:set_look_vertical(state.angle + delta_angle)
-	end
-})
-
-cinematic.register_motion("zoom", {
-	initialize = function(player, params)
-		return {
-			speed = params:get_speed({"out"}, "in"),
-		}
-	end,
-	tick = function(player, state)
-		-- Capture initial FOV at the tick
-		-- This is not possible in initialize because the FOV modifier has not been applied yet
-		if state.fov == nil then
-			local fov = {player:get_fov()}
-			minetest.chat_send_all(dump(fov,""))
-			if fov[1] == 0 then
-				fov[1] = 1
-				fov[2] = true
-			end
-			fov[3] = 0
-			state.fov = fov
-		end
-		state.fov[1] = state.fov[1] - 0.001 * state.speed
-		player:set_fov(unpack(state.fov))
-	end
-})
-
-cinematic.register_motion("stop", {initialize = function() end})
-cinematic.register_motion("revert", {initialize = function(player) position.restore(player, "auto") end})
+-- include all motions
+dofile(MOD_PATH .. "motions.lua")
 
 cinematic.register_command("pos", {
 	run = function(player, args)
-		local slot = args[2] or "default"
+		local slot = args[2]
+		local ok = false
+		local msg = nil
 
 		if args[1] == "save" then
+			slot = slot or "default"
 			position.save(player, slot)
-			return true
+			ok = true
+			msg = S("Current Position saved to @1", slot)
 		elseif args[1] == "restore" then
-			position.restore(player, slot)
-			return true
+			slot = slot or "default"
+			ok, msg = position.restore(player, slot)
+			if ok then msg = S("Position restored from @1", slot) end
 		elseif args[1] == "clear" then
 			position.clear(player, slot)
-		elseif args[1] == "list" then
-			for _,slot in ipairs(position.list(player)) do
-				minetest.chat_send_player(player:get_player_name(), slot)
+			ok = true
+			if slot then
+				msg = S("@1 position cleared.", slot)
+			else
+				msg = S("All positions cleared.")
 			end
+		elseif args[1] == "list" then
+			ok = true
+			msg = table.concat(position.list(player), "\n")
 		else
-			return false, "Unknown subcommand"..(args[1] or "")
+			msg = S("Unknown subcommand @1", (args[1] or ""))
+		end
+		return ok, msg
+	end
+})
+
+local function get_speed(self, negative_dirs, default_dir)
+	return (self.speed or 1) * (is_in(self.direction or default_dir, negative_dirs) and -1 or 1)
+end
+
+local function execCommand(player, cmdline)
+	local params = {}
+	local parts = string_split(cmdline, " ")
+
+	local command = parts[1]
+	table.remove(parts, 1)
+	-- Handle commands
+	if cinematic.commands[command] ~= nil then
+		return cinematic.commands[command].run(player, parts)
+	end
+
+	if cinematic.motions[command] == nil then
+		return false, S("Invalid command or motion, see /help cc")
+	end
+
+	-- Parse command line
+	for i = 1,#parts do
+		local parsed = false
+		for _, setting in ipairs({"norun"}) do
+			if parts[i] == setting then
+				params.norun = true
+				parsed = true
+				break
+			end
+		end
+		if not parsed then
+			for _,setting in ipairs({
+				"direction", "dir",
+				"speed", "v",
+				"radius", "r",
+				"fov",
+				"time", "t",
+				"name", "n",
+				"pos", "p",
+			}) do
+				if starts_with(parts[i], setting.."=") then
+					params[setting] = skip_prefix(parts[i], setting.."=")
+					parsed = true
+					break
+				end
+			end
+		end
+		if not parsed then
+			return false, S("Invalid parameter: @1", parts[i])
+		end
+	end
+
+	-- Fix parameters
+	params.direction = params.direction or params.dir
+	params.speed = params.speed or params.v
+	params.radius = params.radius or params.r
+	params.time = params.time or params.t
+	params.name = params.name or params.n
+	params.pos = params.pos or params.p
+
+	params.speed = (params.speed and tonumber(params.speed))
+	params.radius = (params.radius and tonumber(params.radius))
+	params.time = (params.time and tonumber(params.time))
+	if params.pos then
+		local pos = minetest.string_to_pos(params.pos)
+		if pos == nil then
+			params.pos = position.get(player, params.pos)
+		else
+			params.pos = position.current(player)
+			params.pos.pos = pos
+		end
+	end
+
+	params.get_speed = get_speed
+
+	if params.name then
+		params.type = command
+		motion.save(player, params.name, params)
+	end
+	if params.norun ~= true then
+		cinematic.start(player, command, params)
+	end
+	return true, S("Motion @1 Starting...", motion)
+end
+
+cinematic.register_command("run", {
+	run = function(player, args)
+		local paramsList = {}
+		for i, v in ipairs(args) do
+			local mParams, err = motion.get(player, v)
+			if not mParams then return false, S(err) end
+			mParams.get_speed = get_speed
+			mParams.index = i
+			mParams.onStop = function(player, params)
+				local nextId = params.index+1
+				if nextId <= #paramsList then
+					params = paramsList[nextId]
+					cinematic.start(player, params.type, params)
+				end
+			end
+			table.insert(paramsList, mParams)
+		end
+		if #paramsList then
+			local params = paramsList[1]
+			cinematic.start(player, params.type, params)
+			return true
+		else
+			return false, S("No any named motions provided")
 		end
 	end
 })
 
+cinematic.register_command("motion", {
+	run = function(player, args)
+		local slot = args[2]
+		local ok = false
+		local msg
+		print(dump(args))
+
+		if args[1] == "clear" then
+			position.clear(player, slot)
+			ok = true
+			if slot then
+				msg = S("@1 motion cleared.", slot)
+			else
+				msg = S("All motions cleared.")
+			end
+		elseif args[1] == "list" then
+			ok = true
+			local motions = motion.list(player)
+			table.insert(motions, 1, "---MOTION LIST---")
+			msg = table.concat(motions, "\n")
+		else
+			msg = S("Unknown subcommand @1", (args[1] or ""))
+		end
+		print("motion cmd msg:", dump(msg))
+		return ok, msg
+	end
+})
 
 -- Chat command handler
 
 minetest.register_chatcommand("cc", {
-	params = "((360|tilt|pan|truck|dolly|pedestal) [direction=(right|left|in|out|up|down)] [speed=<speed>] [radius=<radius>] | pos ((save|restore|clear [<name>])|list)) | (stop|revert)",
-	description = "Simulate cinematic camera motion",
+	params = "((360|tilt|pan|truck|dolly|pedestal) [direction=(right|left|in|out|up|down)] [speed=<speed>] [radius=<radius>] [name=<named_motion>] | pos ((save|restore|clear [<name>])|list)) | (stop|revert) | motion ((|clear [<name>])|list)) | (run <motions>)",
+	description = S("Simulate cinematic camera motion"),
 	privs = { fly = true },
 	func = function(name, cmdline)
 		local player = minetest.get_player_by_name(name)
-		local params = {}
-		local parts = string_split(cmdline, " ")
-
-		local command = parts[1]
-		table.remove(parts, 1)
-		-- Handle commands
-		if cinematic.commands[command] ~= nil then
-			return cinematic.commands[command].run(player, parts)
-		end
-
-		if cinematic.motions[command] == nil then
-			return false, "Invalid command or motion, see /help cc"
-		end
-
-		-- Parse command line
-		for i = 1,#parts do
-			local parsed = false
-			for _,setting in ipairs({ "direction", "dir", "speed", "v", "radius", "r", "fov" }) do
-				if not parsed and starts_with(parts[i], setting.."=") then
-					params[setting] = skip_prefix(parts[i], setting.."=")
-					parsed = true
-				end
-			end
-			if not parsed then
-				return false, "Invalid parameter "..parts[i]
-			end
-		end
-
-		-- Fix parameters
-		params.direction = params.direction or params.dir
-		params.speed = params.speed or params.v
-		params.radius = params.radius or params.r
-
-		params.speed = (params.speed and tonumber(params.speed))
-		params.radius = (params.radius and tonumber(params.radius))
-
-		params.get_speed = function(self, negative_dirs, default_dir)
-			return (self.speed or 1) * (is_in(self.direction or default_dir, negative_dirs) and -1 or 1)
-		end
-
-		cinematic.start(player, command, params)
-		return true,""
+		return execCommand(player, cmdline)
 	end
 })
 

@@ -1,0 +1,17 @@
+# textdomain: cinematic
+Current Position saved to @1=当前位置已被保存为 @1
+Position restored from @1=@1 位置已经恢复
+@1 position cleared.= @1 位置已被删除.
+All positions cleared.=所有的位置已被删除.
+Unknown subcommand @1=未知命令 @1
+Invalid command or motion, see /help cc=无效的命令/运动,请参阅 /help cc
+Invalid parameter: @1=无效参数: @1
+Motion @1 Starting...=运动 @1 开始...
+No any named motions provided=没有提供运动的名称
+@1 motion cleared.=@1 运动已被删除.
+All motions cleared.=所有运动已删除.
+Simulate cinematic camera motion=模拟电影摄像机运动
+Saved motion not found=没有找到保存的运动
+Saved motion could not be restored=该运动无法恢复
+Saved position not found=没有找到保存的位置
+Saved position could not be restored=该位置无法恢复
