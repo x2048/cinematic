@@ -214,7 +214,7 @@ local function execCommand(player, cmdline)
 	if params.norun ~= true then
 		cinematic.start(player, command, params)
 	end
-	return true, S("Motion @1 Starting...", motion)
+	return true, S("Motion @1 Starting...", command)
 end
 
 cinematic.register_command("run", {
