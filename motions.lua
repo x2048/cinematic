@@ -177,19 +177,29 @@ cinematic.register_motion("revert", {
 cinematic.register_motion("to", {
 	initialize = function(player, params)
 		local posEnd = params.pos
-		local posStart = player:get_pos()
+		local posStart = position.current(player)
 		local speed = params:get_speed({"l", "left"}, "right")
 		local timeEnd
 		local direction
+		local angleSpeed
 		if posEnd then
-			local l = vector.distance(posStart, posEnd.pos)
+			local l = vector.distance(posStart.pos, posEnd.pos)
 			timeEnd = l / speed
 			if params.time then
-				params.time = math.min(params.time, timeEnd)
+				if params.speed == nil then
+					local vSpeed = l / params.time
+					speed = vSpeed * speed
+				else
+					params.time = math.min(params.time, timeEnd)
+				end
 			else
 				params.time = timeEnd
 			end
-			direction = vector.direction(posStart, posEnd.pos)
+			direction = vector.direction(posStart.pos, posEnd.pos)
+			angleSpeed = {
+				h = (posEnd.look.h - posStart.look.h) / params.time,
+				v = (posEnd.look.v - posStart.look.v) / params.time,
+			}
 		else
 			direction = vector.normalize(vector.cross(vector.new(0,1,0), player:get_look_dir()))
 		end
@@ -197,13 +207,20 @@ cinematic.register_motion("to", {
 			speed = speed,
 			direction = direction,
 			origin = posStart,
+			angleSpeed = angleSpeed,
 			time = 0,
 		}
 	end,
 	tick = function(player, state, dtime)
 		state.time = state.time + dtime
 
-		local player_pos = vector.add(state.origin, vector.multiply(state.direction, state.time * state.speed))
+		local player_pos = vector.add(state.origin.pos, vector.multiply(state.direction, state.time * state.speed))
 		player:set_pos(player_pos)
+		if state.angleSpeed then
+			local delta_angle = state.angleSpeed.h * state.time
+			player:set_look_horizontal(state.origin.look.h + delta_angle)
+			delta_angle = state.angleSpeed.v * state.time
+			player:set_look_vertical(state.origin.look.v + delta_angle)
+		end
 	end
 })
